@@ -16,10 +16,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # تهيئة قاعدة البيانات عند البدء
-init_db()
+try:
+    init_db()
+except Exception as e:
+    logger.error(f"❌ بووم! خطأ أثناء تهيئة قاعدة البيانات: {e}")
 
 # تهيئة Google Sheets عند البدء
-init_google_sheets()
+try:
+    init_google_sheets()
+except Exception as e:
+    logger.error(f"❌ أووبس! خطأ أثناء تهيئة Google Sheets: {e}")
 
 app = FastAPI()
 

@@ -9,8 +9,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+
+model = None
+
+try:
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+    else:
+        logger.warning("⚠️ GEMINI_API_KEY not found. AI features will be disabled.")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize Gemini: {e}")
+
 SYSTEM_PROMPT = """أنت بائع سعودي محترف لمواد البناء. أسلوبك ودود ومرن.
 
 **مهمتك:** استقبال الطلبات.
@@ -102,6 +112,9 @@ def get_ai_response(history, user_info, allowed_locations=None):
     conversation = SYSTEM_PROMPT_MODIFIED + "\n" + customer_info_for_prompt + "\n".join(history) + "\nالبائع:"
     
     try:
+        if not model:
+            return "عذراً، نظام الذكاء الاصطناعي غير متصل حالياً (Missing API Key)."
+            
         response = model.generate_content(conversation)
         return response.text.strip()
     except Exception as e:

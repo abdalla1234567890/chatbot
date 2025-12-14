@@ -18,6 +18,8 @@ def get_db_connection():
         if not psycopg2:
             raise ImportError("psycopg2 is required for PostgreSQL")
         return psycopg2.connect(DATABASE_URL)
+    
+    logger.warning("⚠️ DATABASE_URL not found. Falling back to SQLite (users.db). This will fail on Vercel!")
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON")  # تفعيل Foreign Keys في SQLite
     return conn
