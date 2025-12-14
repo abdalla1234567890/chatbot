@@ -1,0 +1,309 @@
+import sqlite3
+import logging
+import os
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
+
+logger = logging.getLogger(__name__)
+
+DB_NAME = "users.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_db_connection():
+    """إنشاء اتصال بقاعدة البيانات (SQLite أو PostgreSQL)"""
+    if DATABASE_URL:
+        if not psycopg2:
+            raise ImportError("psycopg2 is required for PostgreSQL")
+        return psycopg2.connect(DATABASE_URL)
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("PRAGMA foreign_keys = ON")  # تفعيل Foreign Keys في SQLite
+    return conn
+
+def execute_query(cursor, query, params=None):
+    """تنفيذ استعلام مع معالجة اختلاف الرموز بين SQLite و Postgres"""
+    if DATABASE_URL:
+        # استبدال ? بـ %s لقواعد بيانات Postgres
+        query = query.replace("?", "%s")
+    cursor.execute(query, params or ())
+
+def init_db():
+    """تهيئة قاعدة البيانات وإنشاء الأدمن الافتراضي"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # إنشاء جدول المستخدمين
+        # Syntax is compatible for both for this simple table
+        c.execute('''CREATE TABLE IF NOT EXISTS users
+                     (code TEXT PRIMARY KEY, 
+                      name TEXT, 
+                      phone TEXT, 
+                      is_admin INTEGER DEFAULT 0)''')
+        
+        # إنشاء جدول المواقع
+        if DATABASE_URL:
+            # Postgres Syntax
+            c.execute('''CREATE TABLE IF NOT EXISTS locations
+                         (id SERIAL PRIMARY KEY,
+                          name TEXT UNIQUE NOT NULL)''')
+        else:
+            # SQLite Syntax
+            c.execute('''CREATE TABLE IF NOT EXISTS locations
+                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          name TEXT UNIQUE NOT NULL)''')
+        
+        # إنشاء جدول ربط المستخدمين بالمواقع (many-to-many)
+        if DATABASE_URL:
+            # Postgres Syntax
+            c.execute('''CREATE TABLE IF NOT EXISTS user_locations
+                         (user_code TEXT NOT NULL,
+                          location_id INTEGER NOT NULL,
+                          PRIMARY KEY (user_code, location_id),
+                          FOREIGN KEY (user_code) REFERENCES users(code) ON DELETE CASCADE,
+                          FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE)''')
+        else:
+            # SQLite Syntax (بدون Foreign Keys لتجنب المشاكل)
+            c.execute('''CREATE TABLE IF NOT EXISTS user_locations
+                         (user_code TEXT NOT NULL,
+                          location_id INTEGER NOT NULL,
+                          PRIMARY KEY (user_code, location_id))''')
+        
+        # التحقق من وجود الأدمن الافتراضي
+        execute_query(c, "SELECT * FROM users WHERE code = 'admin123'")
+        if not c.fetchone():
+            # إضافة الأدمن: كود admin123، اسم admin، هاتف 0500000000، أدمن=1
+            execute_query(c, "INSERT INTO users VALUES (?, ?, ?, ?)", 
+                      ('admin123', 'admin', '0500000000', 1))
+            logger.info("👑 تم إنشاء حساب الأدمن الافتراضي (admin123)")
+        
+        # إضافة المواقع الافتراضية إذا كان الجدول فارغاً
+        c.execute("SELECT COUNT(*) FROM locations")
+        if c.fetchone()[0] == 0:
+            default_locations = [
+                "عمان", "العراق", "مصر قرعة", "مصر مميز VIP", "مصر تضامن إقتصادي",
+                "مصر تضامن 5 نجوم", "مصر سياحي إقتصادي", "مصر سياحي مميز",
+                "مصر سياحي شركات VIP", "نيجيريا", "مصر بري", "روسيا", "بنغلادش",
+                "اندونيسيا", "تشاد", "فلسطين", "مشروع صيانة اعمال جنوب اسيا",
+                "ترافيل كورنر", "الراجحي 5 نجوم", "مشروع كدانه دورات مياه مزدلفة"
+            ]
+            for location in default_locations:
+                execute_query(c, "INSERT INTO locations (name) VALUES (?)", (location,))
+            logger.info(f"📍 تم إضافة {len(default_locations)} موقع افتراضي")
+            
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"❌ خطأ DB Init: {e}")
+
+def db_login(code):
+    """التحقق من الدخول وإرجاع بيانات المستخدم (الاسم، الهاتف، حالة الأدمن)"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "SELECT name, phone, is_admin FROM users WHERE code = ?", (code,))
+        result = c.fetchone()
+        conn.close()
+        return result
+    except Exception as e:
+        logger.error(f"DB Login Error: {e}")
+        return None
+
+def db_add_user(code, phone, name):
+    """إضافة مستخدم مع التحقق من شروط الإدخال الجديدة"""
+    # 1. التحقق من الكود (8 حروف/أرقام بالضبط)
+    if len(code) != 8: return "❌ الكود يجب أن يكون 8 حروف/أرقام بالضبط."
+    
+    # 2. التحقق من الاسم (حد أقصى 100 حرف)
+    if len(name) > 100: return "❌ الاسم طويل جداً (حد أقصى 100 حرف)."
+    
+    # 3. التحقق من الهاتف (10 أرقام بالضبط ويبدأ بـ 05)
+    if not (len(phone) == 10 and phone.isdigit() and phone.startswith("05")):
+        return "❌ رقم الهاتف يجب أن يتكون من 10 أرقام بالضبط وأن يبدأ بـ '05'."
+
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "INSERT INTO users (code, name, phone, is_admin) VALUES (?, ?, ?, 0)", 
+                  (code, name, phone))
+        conn.commit()
+        conn.close()
+        return "✅ تم إضافة المستخدم بنجاح."
+    except Exception as e:
+        # Handle IntegrityError generically since it differs between libs
+        if "UNIQUE constraint" in str(e) or "duplicate key" in str(e):
+             return "❌ هذا الكود مستخدم بالفعل."
+        return f"❌ خطأ غير متوقع: {e}"
+
+def db_delete_user(code):
+    if code == "admin123": return "❌ لا يمكن حذف الأدمن الرئيسي."
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "DELETE FROM users WHERE code = ?", (code,))
+        count = c.rowcount
+        conn.commit()
+        conn.close()
+        return "✅ تم الحذف." if count > 0 else "❌ المستخدم غير موجود."
+    except Exception as e:
+        return f"❌ خطأ: {e}"
+
+def db_get_user_locations(user_code):
+    """جلب المواقع الخاصة بمستخدم معين"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, """SELECT l.id, l.name FROM locations l
+                          INNER JOIN user_locations ul ON l.id = ul.location_id
+                          WHERE ul.user_code = ?
+                          ORDER BY l.name""", (user_code,))
+        locations = c.fetchall()
+        conn.close()
+        return locations
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب مواقع المستخدم: {e}")
+        return []
+
+def db_set_user_locations(user_code, location_ids):
+    """تعيين قائمة المواقع للمستخدم (استبدال القائمة القديمة)"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # حذف المواقع القديمة للمستخدم
+        execute_query(c, "DELETE FROM user_locations WHERE user_code = ?", (user_code,))
+        
+        # إضافة المواقع الجديدة
+        for location_id in location_ids:
+            execute_query(c, "INSERT INTO user_locations (user_code, location_id) VALUES (?, ?)", 
+                        (user_code, location_id))
+        
+        conn.commit()
+        conn.close()
+        return "✅ تم تحديث المواقع بنجاح."
+    except Exception as e:
+        return f"❌ خطأ: {e}"
+
+def db_add_location_to_user(user_code, location_id):
+    """إضافة موقع واحد للمستخدم"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "INSERT INTO user_locations (user_code, location_id) VALUES (?, ?)", 
+                    (user_code, location_id))
+        conn.commit()
+        conn.close()
+        return "✅ تم إضافة الموقع للمستخدم."
+    except Exception as e:
+        if "UNIQUE constraint" in str(e) or "duplicate key" in str(e):
+            return "❌ هذا الموقع موجود بالفعل لدى المستخدم."
+        return f"❌ خطأ: {e}"
+
+def db_remove_location_from_user(user_code, location_id):
+    """إزالة موقع من مواقع المستخدم"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "DELETE FROM user_locations WHERE user_code = ? AND location_id = ?", 
+                    (user_code, location_id))
+        count = c.rowcount
+        conn.commit()
+        conn.close()
+        return "✅ تم إزالة الموقع." if count > 0 else "❌ الموقع غير موجود للمستخدم."
+    except Exception as e:
+        return f"❌ خطأ: {e}"
+
+def db_update_user(code, field, new_value):
+    """تعديل بيانات مستخدم مع التحقق من شروط الإدخال الجديدة"""
+    if code == "admin123" and field == "code": return "❌ لا يمكن تغيير كود الأدمن الرئيسي."
+    
+    # Whitelist allowed fields to prevent SQL Injection
+    ALLOWED_FIELDS = ["name", "phone", "code"]
+    if field not in ALLOWED_FIELDS:
+        return "❌ محاولة تعديل حقل غير مسموح به."
+    
+    # التحقق من القيود
+    if field == "name" and len(new_value) > 100: return "❌ الاسم طويل جداً (حد أقصى 100 حرف)."
+    
+    if field == "phone":
+        if not (len(new_value) == 10 and new_value.isdigit() and new_value.startswith("05")):
+            return "❌ رقم الهاتف يجب أن يتكون من 10 أرقام بالضبط وأن يبدأ بـ '05'."
+            
+    if field == "code":
+        if len(new_value) != 8:
+            return "❌ الكود يجب أن يكون 8 حروف/أرقام بالضبط."
+
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        query = f"UPDATE users SET {field} = ? WHERE code = ?"
+        execute_query(c, query, (new_value, code))
+        
+        count = c.rowcount
+        conn.commit()
+        conn.close()
+        return f"✅ تم تحديث **{field}** للمستخدم `{code}`." if count > 0 else "❌ المستخدم غير موجود."
+    except Exception as e:
+        if "UNIQUE constraint" in str(e) or "duplicate key" in str(e):
+            return "❌ الكود الجديد مستخدم بالفعل."
+        return f"❌ خطأ: {e}"
+
+def db_get_all_users():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT code, name, phone, is_admin FROM users")
+    users = c.fetchall()
+    conn.close()
+    return users
+
+# --- Locations Management ---
+
+def db_get_all_locations():
+    """جلب جميع المواقع من قاعدة البيانات"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT id, name FROM locations ORDER BY name")
+        locations = c.fetchall()
+        conn.close()
+        return locations
+    except Exception as e:
+        logger.error(f"❌ خطأ في جلب المواقع: {e}")
+        return []
+
+def db_add_location(name):
+    """إضافة موقع جديد"""
+    if not name or len(name.strip()) == 0:
+        return "❌ اسم الموقع لا يمكن أن يكون فارغاً."
+    
+    name = name.strip()
+    if len(name) > 100:
+        return "❌ اسم الموقع طويل جداً (حد أقصى 100 حرف)."
+    
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "INSERT INTO locations (name) VALUES (?)", (name,))
+        conn.commit()
+        conn.close()
+        return "✅ تم إضافة الموقع بنجاح."
+    except Exception as e:
+        if "UNIQUE constraint" in str(e) or "duplicate key" in str(e):
+            return "❌ هذا الموقع موجود بالفعل."
+        return f"❌ خطأ غير متوقع: {e}"
+
+def db_delete_location(location_id):
+    """حذف موقع"""
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        execute_query(c, "DELETE FROM locations WHERE id = ?", (location_id,))
+        count = c.rowcount
+        conn.commit()
+        conn.close()
+        return "✅ تم حذف الموقع." if count > 0 else "❌ الموقع غير موجود."
+    except Exception as e:
+        return f"❌ خطأ: {e}"
