@@ -14,7 +14,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 try:
     import psycopg2
-    from psycopg2.extras import RealDictCursor
 except ImportError:
     psycopg2 = None
 
@@ -26,7 +25,7 @@ def get_db_connection():
     """Get connection based on environment"""
     if is_postgres():
         try:
-            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            conn = psycopg2.connect(DATABASE_URL)
             return conn
         except Exception as e:
             logger.error(f"❌ Failed to connect to Postgres: {e}")
@@ -98,8 +97,8 @@ def init_db():
         # Default Locations
         try:
             if is_postgres():
-                c.execute("SELECT COUNT(*) as count FROM locations")
-                count = c.fetchone()['count']
+                c.execute("SELECT COUNT(*) FROM locations")
+                count = c.fetchone()[0]
             else:
                 c.execute("SELECT COUNT(*) FROM locations")
                 count = c.fetchone()[0]
@@ -139,13 +138,6 @@ def db_login(code):
         
         # Normalize return to tuple (name, phone, is_admin)
         if result:
-            if isinstance(result, dict) or (psycopg2 and isinstance(c, psycopg2.extensions.cursor)): 
-                # Basic cursor vs RealDictCursor check
-                if isinstance(result, dict):
-                     return (result['name'], result['phone'], result['is_admin'])
-                # If standard cursor in postgres, it returns tuple, so safe.
-            
-            # SQLite returns tuple
             return result 
         return None
     except Exception as e:
