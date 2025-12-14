@@ -2,113 +2,152 @@ import sqlite3
 import logging
 import os
 
-try:
-    import psycopg2
-except ImportError:
-    psycopg2 = None
-
 logger = logging.getLogger(__name__)
 
 DB_NAME = "users.db"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# --- Hybrid Database Adapter ---
+# This adapter allows the app to run on:
+# 1. Local Machine -> SQLite (No setup required)
+# 2. Vercel/Production -> PostgreSQL (Requires DATABASE_URL)
+
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError:
+    psycopg2 = None
+
+def is_postgres():
+    """Check if we should use PostgreSQL"""
+    return bool(DATABASE_URL) and (psycopg2 is not None)
+
 def get_db_connection():
-    """إنشاء اتصال بقاعدة البيانات (SQLite أو PostgreSQL)"""
-    if DATABASE_URL:
-        if not psycopg2:
-            raise ImportError("psycopg2 is required for PostgreSQL")
-        return psycopg2.connect(DATABASE_URL)
-    
-    logger.warning("⚠️ DATABASE_URL not found. Falling back to SQLite (users.db). This will fail on Vercel!")
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute("PRAGMA foreign_keys = ON")  # تفعيل Foreign Keys في SQLite
-    return conn
+    """Get connection based on environment"""
+    if is_postgres():
+        try:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            return conn
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to Postgres: {e}")
+            raise e
+    else:
+        # Local SQLite Fallback
+        conn = sqlite3.connect(DB_NAME)
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
 
 def execute_query(cursor, query, params=None):
-    """تنفيذ استعلام مع معالجة اختلاف الرموز بين SQLite و Postgres"""
-    if DATABASE_URL:
-        # استبدال ? بـ %s لقواعد بيانات Postgres
+    """Execute query handling syntax differences (? vs %s)"""
+    if is_postgres():
+        # Postgres uses %s
         query = query.replace("?", "%s")
+    else:
+        # SQLite uses ?
+        pass
+        
     cursor.execute(query, params or ())
 
 def init_db():
-    """تهيئة قاعدة البيانات وإنشاء الأدمن الافتراضي"""
+    """Initialize database tables tailored to the active DB engine"""
+    mode = "PostgreSQL (Production)" if is_postgres() else "SQLite (Local)"
+    logger.info(f"🔄 Initializing Database. Mode: {mode}")
+    
     try:
         conn = get_db_connection()
         c = conn.cursor()
         
-        # إنشاء جدول المستخدمين
-        # Syntax is compatible for both for this simple table
-        c.execute('''CREATE TABLE IF NOT EXISTS users
+        # 1. Users Table (Compatible SQL)
+        execute_query(c, '''CREATE TABLE IF NOT EXISTS users
                      (code TEXT PRIMARY KEY, 
                       name TEXT, 
                       phone TEXT, 
                       is_admin INTEGER DEFAULT 0)''')
         
-        # إنشاء جدول المواقع
-        if DATABASE_URL:
-            # Postgres Syntax
+        # 2. Locations Table
+        if is_postgres():
             c.execute('''CREATE TABLE IF NOT EXISTS locations
                          (id SERIAL PRIMARY KEY,
                           name TEXT UNIQUE NOT NULL)''')
         else:
-            # SQLite Syntax
             c.execute('''CREATE TABLE IF NOT EXISTS locations
                          (id INTEGER PRIMARY KEY AUTOINCREMENT,
                           name TEXT UNIQUE NOT NULL)''')
         
-        # إنشاء جدول ربط المستخدمين بالمواقع (many-to-many)
-        if DATABASE_URL:
-            # Postgres Syntax
-            c.execute('''CREATE TABLE IF NOT EXISTS user_locations
-                         (user_code TEXT NOT NULL,
-                          location_id INTEGER NOT NULL,
-                          PRIMARY KEY (user_code, location_id),
-                          FOREIGN KEY (user_code) REFERENCES users(code) ON DELETE CASCADE,
-                          FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE)''')
+        # 3. User Locations Table
+        if is_postgres():
+             c.execute('''CREATE TABLE IF NOT EXISTS user_locations
+                          (user_code TEXT NOT NULL,
+                           location_id INTEGER NOT NULL,
+                           PRIMARY KEY (user_code, location_id),
+                           FOREIGN KEY (user_code) REFERENCES users(code) ON DELETE CASCADE,
+                           FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE)''')
         else:
-            # SQLite Syntax (بدون Foreign Keys لتجنب المشاكل)
             c.execute('''CREATE TABLE IF NOT EXISTS user_locations
                          (user_code TEXT NOT NULL,
                           location_id INTEGER NOT NULL,
                           PRIMARY KEY (user_code, location_id))''')
-        
-        # التحقق من وجود الأدمن الافتراضي
-        execute_query(c, "SELECT * FROM users WHERE code = 'admin123'")
+
+        # Create Admin
+        execute_query(c, "SELECT * FROM users WHERE code = ?", ('admin123',))
         if not c.fetchone():
-            # إضافة الأدمن: كود admin123، اسم admin، هاتف 0500000000، أدمن=1
-            execute_query(c, "INSERT INTO users VALUES (?, ?, ?, ?)", 
+            execute_query(c, "INSERT INTO users (code, name, phone, is_admin) VALUES (?, ?, ?, ?)", 
                       ('admin123', 'admin', '0500000000', 1))
-            logger.info("👑 تم إنشاء حساب الأدمن الافتراضي (admin123)")
-        
-        # إضافة المواقع الافتراضية إذا كان الجدول فارغاً
-        c.execute("SELECT COUNT(*) FROM locations")
-        if c.fetchone()[0] == 0:
-            default_locations = [
-                "عمان", "العراق", "مصر قرعة", "مصر مميز VIP", "مصر تضامن إقتصادي",
-                "مصر تضامن 5 نجوم", "مصر سياحي إقتصادي", "مصر سياحي مميز",
-                "مصر سياحي شركات VIP", "نيجيريا", "مصر بري", "روسيا", "بنغلادش",
-                "اندونيسيا", "تشاد", "فلسطين", "مشروع صيانة اعمال جنوب اسيا",
-                "ترافيل كورنر", "الراجحي 5 نجوم", "مشروع كدانه دورات مياه مزدلفة"
-            ]
-            for location in default_locations:
-                execute_query(c, "INSERT INTO locations (name) VALUES (?)", (location,))
-            logger.info(f"📍 تم إضافة {len(default_locations)} موقع افتراضي")
+            logger.info("👑 Admin account created: admin123")
             
+        # Default Locations
+        try:
+            if is_postgres():
+                c.execute("SELECT COUNT(*) as count FROM locations")
+                count = c.fetchone()['count']
+            else:
+                c.execute("SELECT COUNT(*) FROM locations")
+                count = c.fetchone()[0]
+                
+            if count == 0:
+                default_locations = [
+                    "عمان", "العراق", "مصر قرعة", "مصر مميز VIP", "مصر تضامن إقتصادي",
+                    "مصر تضامن 5 نجوم", "مصر سياحي إقتصادي", "مصر سياحي مميز",
+                    "مصر سياحي شركات VIP", "نيجيريا", "مصر بري", "روسيا", "بنغلادش",
+                    "اندونيسيا", "تشاد", "فلسطين", "مشروع صيانة اعمال جنوب اسيا",
+                    "ترافيل كورنر", "الراجحي 5 نجوم", "مشروع كدانه دورات مياه مزدلفة"
+                ]
+                for location in default_locations:
+                    execute_query(c, "INSERT INTO locations (name) VALUES (?)", (location,))
+                logger.info(f"📍 Added {len(default_locations)} default locations.")
+        except Exception as e:
+            logger.warning(f"locations init warning: {e}")
+
         conn.commit()
         conn.close()
+        logger.info("✅ Database initialized successfully.")
     except Exception as e:
-        logger.error(f"❌ خطأ DB Init: {e}")
+        logger.error(f"❌ Database Init Failed: {e}")
+        # We generally don't want to crash here in prod if it's just an ephemeral error, 
+        # but for init_db it's usually critical. 
+        # Main.py catches this now, so we are safe to just log.
+
 
 def db_login(code):
-    """التحقق من الدخول وإرجاع بيانات المستخدم (الاسم، الهاتف، حالة الأدمن)"""
+    """Check login and return user details"""
     try:
         conn = get_db_connection()
         c = conn.cursor()
         execute_query(c, "SELECT name, phone, is_admin FROM users WHERE code = ?", (code,))
         result = c.fetchone()
         conn.close()
-        return result
+        
+        # Normalize return to tuple (name, phone, is_admin)
+        if result:
+            if isinstance(result, dict) or (psycopg2 and isinstance(c, psycopg2.extensions.cursor)): 
+                # Basic cursor vs RealDictCursor check
+                if isinstance(result, dict):
+                     return (result['name'], result['phone'], result['is_admin'])
+                # If standard cursor in postgres, it returns tuple, so safe.
+            
+            # SQLite returns tuple
+            return result 
+        return None
     except Exception as e:
         logger.error(f"DB Login Error: {e}")
         return None
