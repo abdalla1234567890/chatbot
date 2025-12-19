@@ -25,16 +25,24 @@ def init_google_sheets():
         # محاولة التحميل من متغير البيئة أولاً (للإنتاج)
         creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
         if creds_json:
+            logger.info("Using GOOGLE_CREDENTIALS_JSON from environment")
             creds_dict = json.loads(creds_json)
-            gc = gspread.service_account_from_dict(creds_dict)
         else:
             # التحميل من الملف المحلي (للتطوير)
-            gc = gspread.service_account(filename=CREDENTIALS_FILE)
+            logger.info(f"Using local file: {CREDENTIALS_FILE}")
+            with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
+                creds_dict = json.load(f)
+        
+        # تصحيح مفتاح التشفير إذا كان يحتوي على escaped newlines
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+        gc = gspread.service_account_from_dict(creds_dict)
             
         sh = gc.open(GOOGLE_SHEET_NAME)
         try: worksheet = sh.worksheet("Sheet1")
         except: worksheet = sh.sheet1
-        logger.info("✅ تم الاتصال بـ Google Sheets")
+        logger.info("✅ تم الاتصال بـ Google Sheets بنجاح")
     except Exception as e:
         logger.error(f"❌ خطأ Sheets: {e}")
 
