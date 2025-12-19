@@ -24,7 +24,6 @@ export default function ChatPage() {
     const [locations, setLocations] = useState<Location[]>([]);
     const [user, setUser] = useState<any>(null);
 
-
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
@@ -233,20 +232,26 @@ export default function ChatPage() {
                         }}
                         className="space-y-3"
                     >
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
+                        <div className="flex gap-1">
+                            <textarea
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && e.ctrlKey) {
+                                        e.preventDefault();
+                                        sendMessage(input);
+                                    }
+                                }}
                                 placeholder={showLocations ? "اختر الموقع من الأزرار أعلاه..." : "اكتب طلبك هنا..."}
-                                className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50"
+                                className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 resize-none overflow-y-auto"
                                 disabled={loading || showLocations}
+                                rows={1}
                                 autoFocus
                             />
                             <button
                                 type="submit"
                                 disabled={loading || showLocations || !input.trim()}
-                                className="px-6 py-3 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-3 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 إرسال
                             </button>
