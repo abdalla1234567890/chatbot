@@ -307,4 +307,28 @@ def debug_database():
         "sample_users": users_sample
     }
 
+# --- Emergency Reset Endpoint (CRITICAL: REMOVE AFTER USE) ---
+@app.get("/emergency-reset-admin")
+def emergency_reset_admin():
+    from database import get_db_connection, execute_query, hash_password
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # New code: admin123
+        new_hash = hash_password("admin123")
+        
+        # Reset ALL admins to this code
+        execute_query(c, "UPDATE users SET code = ? WHERE is_admin = 1", (new_hash,))
+        count = c.rowcount
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "success", 
+            "message": f"✅ Reset {count} admin(s) password to 'admin123'. Login now!"
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
