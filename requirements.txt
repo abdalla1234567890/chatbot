@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+requests
+psycopg2-binary
+python-dotenv
+google-generativeai
+gspread
+oauth2client
+python-telegram-bot
+Pillow
+bcrypt==4.0.1
+passlib[bcrypt]==1.7.4
+pyjwt==2.10.1
