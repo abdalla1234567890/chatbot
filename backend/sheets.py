@@ -118,9 +118,8 @@ def save_to_sheet(data, summary, user_info):
                 item.get('unit', ''),
                 summary,
                 "جديد",
-                customer_address,
-                "", # Image URL column left empty
-                customer_name  # عمود إضافي للاسم فقط، بدون كود سري
+                customer_address
+                # Removed last two columns as requested
             ]
             rows.append(row)
 
@@ -138,7 +137,8 @@ def save_to_sheet(data, summary, user_info):
             
             # تنسيق الخلايا بلون الخلفية
             try:
-                cell_range = f"A{start_row}:M{end_row}"
+                # Updated range to K (11 columns)
+                cell_range = f"A{start_row}:K{end_row}"
                 worksheet.format(cell_range, {
                     "backgroundColor": color
                 })

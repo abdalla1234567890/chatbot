@@ -160,8 +160,9 @@ def chat(req: ChatRequest, current_user: dict = Depends(get_current_user)):
     
     if order_data:
         summary = ai_reply.split("###DATA_START###")[0].strip()
-        if save_to_sheet(order_data, summary, user_info):
-            ai_reply = f"{summary}\n\n✅ تم تسجيل طلبك بنجاح! راح نتواصل معك قريب."
+        order_num = save_to_sheet(order_data, summary, user_info)
+        if order_num:
+            ai_reply = f"{summary}\n\n✅ تم تسجيل طلبك بنجاح! رقم الطلب: **{order_num}**\nراح نتواصل معك قريب."
         else:
             ai_reply = "❌ حدث خطأ أثناء حفظ الطلب. يرجى المحاولة لاحقاً."
 
@@ -275,20 +276,5 @@ def remove_location_from_user(user_code: str, location_id: int, admin: dict = De
         return {"status": "success", "message": result}
     else:
         raise HTTPException(status_code=400, detail=result)
-
-# --- Emergency Reset (Plain Text) ---
-@app.get("/emergency-reset-admin")
-def emergency_reset_admin():
-    from database import get_db_connection, execute_query
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        execute_query(c, "UPDATE users SET code = ? WHERE is_admin = 1", ("admin123",))
-        count = c.rowcount
-        conn.commit()
-        conn.close()
-        return {"status": "success", "message": f"✅ Reset {count} admin(s) to 'admin123' (PLAIN TEXT)."}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 
