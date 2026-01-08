@@ -98,16 +98,18 @@ def init_db():
                           location_id INTEGER NOT NULL,
                           PRIMARY KEY (user_code, location_id))''')
 
-        # Create Admin (with hashed code)
-        admin_code = "admin123"
-        admin_hash = hash_password(admin_code)
-        
-        # Check if any admin exists (don't strictly check for the code 'admin123' because it's now hashed)
-        execute_query(c, "SELECT * FROM users WHERE is_admin = 1")
-        if not c.fetchone():
+        # --- Seeding Default Admin ---
+        c.execute("SELECT COUNT(*) FROM users")
+        if c.fetchone()[0] == 0:
+            logger.info("⚡ Database is empty. Creating default admin user...")
+            # Default Admin: Code=admin123
+            # You should change this immediately after login!
+            admin_code = "admin123"
+            hashed_admin = hash_password(admin_code)
+            
             execute_query(c, "INSERT INTO users (code, name, phone, is_admin) VALUES (?, ?, ?, ?)", 
-                      (admin_hash, 'admin', '0500000000', 1))
-            logger.info(f"👑 Admin account created with default code: {admin_code} (Stored as hash)")
+                        (hashed_admin, "Main Admin", "0500000000", 1))
+            logger.info("✅ Default admin created. Code: admin123")
             
         # Default Locations
         try:
