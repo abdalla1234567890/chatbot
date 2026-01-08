@@ -276,58 +276,18 @@ def remove_location_from_user(user_code: str, location_id: int, admin: dict = De
     else:
         raise HTTPException(status_code=400, detail=result)
 
-# --- Debug Endpoint (Remove in Production later) ---
-@app.get("/debug-db")
-def debug_database():
-    from database import is_postgres, get_db_connection
-    is_pg = is_postgres()
-    db_url_exists = bool(os.getenv("DATABASE_URL"))
-    
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM users")
-        user_count = c.fetchone()[0]
-        
-        c.execute("SELECT code, name, is_admin FROM users LIMIT 5")
-        users_sample = [{"code": "HASHED", "name": u[1], "is_admin": u[2]} for u in c.fetchall()]
-        
-        conn.close()
-        status_msg = "✅ Connected"
-    except Exception as e:
-        user_count = -1
-        users_sample = []
-        status_msg = f"❌ Error: {e}"
-
-    return {
-        "is_postgres": is_pg,
-        "has_database_url": db_url_exists,
-        "user_count": user_count,
-        "status": status_msg,
-        "sample_users": users_sample
-    }
-
-# --- Emergency Reset Endpoint (CRITICAL: REMOVE AFTER USE) ---
+# --- Emergency Reset (Plain Text) ---
 @app.get("/emergency-reset-admin")
 def emergency_reset_admin():
-    from database import get_db_connection, execute_query, hash_password
+    from database import get_db_connection, execute_query
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        
-        # New code: admin123
-        new_hash = hash_password("admin123")
-        
-        # Reset ALL admins to this code
-        execute_query(c, "UPDATE users SET code = ? WHERE is_admin = 1", (new_hash,))
+        execute_query(c, "UPDATE users SET code = ? WHERE is_admin = 1", ("admin123",))
         count = c.rowcount
         conn.commit()
         conn.close()
-        
-        return {
-            "status": "success", 
-            "message": f"✅ Reset {count} admin(s) password to 'admin123'. Login now!"
-        }
+        return {"status": "success", "message": f"✅ Reset {count} admin(s) to 'admin123' (PLAIN TEXT)."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

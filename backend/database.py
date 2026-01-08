@@ -21,10 +21,12 @@ except ImportError:
     psycopg2 = None
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # REVERTED: Using plain text as requested
+    return password
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # REVERTED: Simple string comparison
+    return plain_password == hashed_password
 
 def is_postgres():
     """Check if we should use PostgreSQL"""
@@ -391,9 +393,8 @@ def db_get_all_users():
         c.execute("SELECT code, name, phone, is_admin FROM users")
         users = c.fetchall()
         conn.close()
-        # Note: 'code' here is the hash. We hide it for safety or just return it.
-        # Frontend doesn't need the hash.
-        return [{"code": "MATCHED", "name": u[1], "phone": u[2], "is_admin": u[3], "id_hash": u[0]} for u in users]
+        # REVERTED: Show plain code. We keep id_hash field for frontend compatibility but it holds the same plain code.
+        return [{"code": u[0], "name": u[1], "phone": u[2], "is_admin": u[3], "id_hash": u[0]} for u in users]
     except Exception as e:
         logger.error(f"Error fetching all users: {e}")
         return []
