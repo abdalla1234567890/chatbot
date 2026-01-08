@@ -276,4 +276,35 @@ def remove_location_from_user(user_code: str, location_id: int, admin: dict = De
     else:
         raise HTTPException(status_code=400, detail=result)
 
+# --- Debug Endpoint (Remove in Production later) ---
+@app.get("/debug-db")
+def debug_database():
+    from database import is_postgres, get_db_connection
+    is_pg = is_postgres()
+    db_url_exists = bool(os.getenv("DATABASE_URL"))
+    
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users")
+        user_count = c.fetchone()[0]
+        
+        c.execute("SELECT code, name, is_admin FROM users LIMIT 5")
+        users_sample = [{"code": "HASHED", "name": u[1], "is_admin": u[2]} for u in c.fetchall()]
+        
+        conn.close()
+        status_msg = "✅ Connected"
+    except Exception as e:
+        user_count = -1
+        users_sample = []
+        status_msg = f"❌ Error: {e}"
+
+    return {
+        "is_postgres": is_pg,
+        "has_database_url": db_url_exists,
+        "user_count": user_count,
+        "status": status_msg,
+        "sample_users": users_sample
+    }
+
 
