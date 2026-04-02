@@ -48,17 +48,22 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     _check_rate_limit(request)
-    user = crud.get_user_by_code(db, code=form_data.username)
+    login_code = form_data.username.strip()
+    user = crud.get_user_by_code(db, code=login_code)
     if not user:
+        logger.warning(f"Login failed: User not found for code {login_code}")
         _record_failed_attempt(request)
         raise HTTPException(status_code=401, detail="Incorrect code")
-    # Verify secret (backward-compatible upgrade if secret_hash is missing)
+    
+    # Verify secret
     if getattr(user, "secret_hash", None):
-        if not security.verify_password(form_data.username, user.secret_hash):
+        is_valid = security.verify_password(login_code, user.secret_hash)
+        if not is_valid:
+            logger.warning(f"Login failed: Invalid password/code for user {login_code}")
             _record_failed_attempt(request)
             raise HTTPException(status_code=401, detail="Incorrect code")
     else:
-        # Upgrade legacy rows: store bcrypt hash of the existing code
+        logger.info(f"Upgrading legacy user {user.code} to secret_hash")
         user.secret_hash = security.get_password_hash(user.code)
         db.commit()
     
@@ -76,16 +81,22 @@ def login_json(
     db: Session = Depends(session.get_db)
 ):
     _check_rate_limit(request)
-    user = crud.get_user_by_code(db, code=req.code)
+    login_code = req.code.strip()
+    user = crud.get_user_by_code(db, code=login_code)
     if not user:
+        logger.warning(f"LoginJSON failed: User not found for code {login_code}")
         _record_failed_attempt(request)
         raise HTTPException(status_code=401, detail="Invalid code")
-    # Verify secret (backward-compatible upgrade if secret_hash is missing)
+    
+    # Verify secret
     if getattr(user, "secret_hash", None):
-        if not security.verify_password(req.code, user.secret_hash):
+        is_valid = security.verify_password(login_code, user.secret_hash)
+        if not is_valid:
+            logger.warning(f"LoginJSON failed: Invalid password/code for user {login_code}")
             _record_failed_attempt(request)
             raise HTTPException(status_code=401, detail="Invalid code")
     else:
+        logger.info(f"Upgrading legacy user {user.code} in login_json")
         user.secret_hash = security.get_password_hash(user.code)
         db.commit()
 
@@ -106,18 +117,21 @@ def admin_login_start(
     db: Session = Depends(session.get_db)
 ):
     _check_rate_limit(request)
-    user = crud.get_user_by_code(db, code=req.code)
+    login_code = req.code.strip()
+    user = crud.get_user_by_code(db, code=login_code)
     if not user:
+        logger.warning(f"AdminLoginStart failed: User not found for code {login_code}")
         _record_failed_attempt(request)
-        logger.warning("admin_login_start_failed_user_not_found ip=%s", request.client.host if request.client else "unknown")
         raise HTTPException(status_code=401, detail="Invalid code")
 
     if getattr(user, "secret_hash", None):
-        if not security.verify_password(req.code, user.secret_hash):
+        is_valid = security.verify_password(login_code, user.secret_hash)
+        if not is_valid:
+            logger.warning(f"AdminLoginStart failed: Invalid password/code for user {login_code}")
             _record_failed_attempt(request)
-            logger.warning("admin_login_start_failed_bad_secret code=%s ip=%s", req.code, request.client.host if request.client else "unknown")
             raise HTTPException(status_code=401, detail="Invalid code")
     else:
+        logger.info(f"Upgrading legacy user {user.code} in admin_login_start")
         user.secret_hash = security.get_password_hash(user.code)
         db.commit()
 
