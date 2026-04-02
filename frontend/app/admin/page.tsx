@@ -147,6 +147,12 @@ export default function AdminPage() {
     router.push("/");
   };
 
+  const maskUserCode = (code: string) => {
+    if (!code) return "";
+    if (code.length <= 2) return "*".repeat(code.length);
+    return `${"*".repeat(code.length - 2)}${code.slice(-2)}`;
+  };
+
   const handleOpenUserLocationsModal = async (userCode: string) => {
     // Current user's locations can be fetched or derived. 
     // For simplicity, we find the user in our local state.
@@ -295,13 +301,75 @@ export default function AdminPage() {
                         </div>
                     )}
 
+                    {showUpdateForm && (
+                        <div className="mb-8 p-8 bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <h3 className="text-xl font-bold text-white mb-6">✏️ تعديل بيانات المستخدم</h3>
+                            <form onSubmit={handleUpdateUser} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-200 mb-2">رقم المستخدم (مخفي)</label>
+                                    <input
+                                        type="text"
+                                        value={maskUserCode(updateUser.code)}
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 font-mono"
+                                        disabled
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-200 mb-2">الحقل المراد تعديله</label>
+                                    <select
+                                        value={updateUser.field}
+                                        onChange={(e) => setUpdateUser({ ...updateUser, field: e.target.value, value: "" })}
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all"
+                                        required
+                                    >
+                                        <option value="name">الاسم</option>
+                                        <option value="phone">رقم الجوال</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-200 mb-2">القيمة الجديدة</label>
+                                    <input
+                                        type="text"
+                                        value={updateUser.value}
+                                        onChange={(e) => setUpdateUser({ ...updateUser, value: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all font-mono"
+                                        required
+                                        placeholder={updateUser.field === "phone" ? "05XXXXXXXX" : "اكتب الاسم الجديد"}
+                                        pattern={updateUser.field === "phone" ? "05[0-9]{8}" : undefined}
+                                        maxLength={updateUser.field === "phone" ? 10 : undefined}
+                                        minLength={updateUser.field === "phone" ? 10 : undefined}
+                                        inputMode={updateUser.field === "phone" ? "numeric" : "text"}
+                                    />
+                                </div>
+                                <div className="md:col-span-3 flex gap-3">
+                                    <button
+                                        type="submit"
+                                        className="flex-1 py-4 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg transition-all transform active:scale-95"
+                                    >
+                                        حفظ التعديل
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowUpdateForm(false);
+                                            setUpdateUser({ code: "", field: "", value: "" });
+                                        }}
+                                        className="px-6 py-4 bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 rounded-xl transition-all"
+                                    >
+                                        إلغاء
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
                     <div className="bg-white/5 backdrop-blur-lg rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-right">
                                 <thead>
                                     <tr className="bg-white/10">
                                         <th className="px-6 py-5 text-gray-200 font-black">المندوب</th>
-                                        <th className="px-6 py-5 text-gray-200 font-black">الكود</th>
+                                        <th className="px-6 py-5 text-gray-200 font-black">الكود (مخفي)</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">الجوال</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">المستوى</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">الإجراءات</th>
@@ -318,7 +386,7 @@ export default function AdminPage() {
                                                     <span className="text-white font-bold">{user.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-teal-300 font-mono">{user.code}</td>
+                                            <td className="px-6 py-4 text-teal-300 font-mono">{maskUserCode(user.code)}</td>
                                             <td className="px-6 py-4 text-gray-300 font-mono">{user.phone}</td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-4 py-1 rounded-full text-xs font-black tracking-wide ${user.is_admin ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"}`}>
