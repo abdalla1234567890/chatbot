@@ -3,6 +3,7 @@ from app.db import models
 from app.core.security import get_password_hash
 from app.core.config import settings
 import logging
+import secrets
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 def create_user(db: Session, code: str, name: str, phone: str, is_admin: int = 0):
     db_user = models.User(
-        code=get_password_hash(code), 
+        code=code,
+        secret_hash=get_password_hash(code),
         name=name, 
         phone=phone, 
         is_admin=is_admin
@@ -30,7 +32,8 @@ def update_user_field(db: Session, user_code: str, field: str, value: str):
         return None
     
     if field == "code":
-        user.code = get_password_hash(value)
+        # Changing primary key requires careful cascading updates; disallow for safety.
+        return None
     elif hasattr(user, field):
         setattr(user, field, value)
     
@@ -83,6 +86,6 @@ def set_user_locations(db: Session, user_code: str, location_ids: list):
 def init_db_data(db: Session):
     """Seed default admin if empty"""
     if db.query(models.User).count() == 0:
-        admin_code = settings.ADMIN_DEFAULT_CODE
+        admin_code = settings.ADMIN_BOOTSTRAP_CODE or secrets.token_urlsafe(12)
         create_user(db, admin_code, "Main Admin", "0500000000", is_admin=1)
         logger.info(f"✅ Created default admin with code: {admin_code}")

@@ -1,189 +1,89 @@
-# خطوات النشر على Vercel - دليل سريع
+# دليل النشر على Vercel و Neon.tech 🚀
 
-## المتطلبات الأساسية
-
-قبل البدء، تأكد من توفر:
-- ✅ حساب على [Vercel](https://vercel.com)
-- ✅ حساب على [Neon.tech](https://neon.tech) لقاعدة البيانات
-- ✅ Google Sheets API Credentials
-- ✅ Gemini API Key
+هذا الدليل يشرح كيفية نقل مشروعك من النسخة المحلية إلى النسخة السحابية ليعمل بشكل دائم.
 
 ---
 
-## الخطوة 1: إعداد قاعدة البيانات PostgreSQL
+## 1️⃣ الخطوة الأولى: إعداد قاعدة البيانات (Neon.tech)
 
-### استخدام Neon.tech (مجاني)
+بما أن Vercel لا يدعم حفظ ملفات `sqlite` بشكل دائم، سنستخدم Neon:
 
-1. اذهب إلى https://neon.tech وسجل دخول
-2. اضغط "Create Project"
-3. اختر اسم للمشروع والمنطقة (يفضل EU Central 1)
-4. انسخ `DATABASE_URL` من لوحة التحكم
-5. احفظه للاستخدام لاحقًا
-
-الصيغة:
-```
-postgresql://user:password@host/database?sslmode=require
-```
+1. أنشئ حساباً على [Neon.tech](https://neon.tech).
+2. أنشئ مشروعاً جديداً (مثلاً باسم `chatbot`).
+3. في لوحة التحكم، ابحث عن الـ **Connection String**.
+4. تأكد من اختيار **Transaction Mode** (عادة ما يكون مفعل تلقائياً).
+5. سيكون الرابط بهذا الشكل:
+   `postgresql://alex:AbC123dEf@ep-cool-darkness-123.eu-central-1.aws.neon.tech/neondb?sslmode=require`
+6. **احفظ هذا الرابط جانباً.**
 
 ---
 
-## الخطوة 2: إعداد Google Sheets API
+## 2️⃣ الخطوة الثانية: نشر الـ Backend
 
-### إنشاء Service Account
-
-1. اذهب إلى https://console.cloud.google.com
-2. أنشئ مشروع جديد أو اختر مشروع موجود
-3. من القائمة الجانبية: **APIs & Services** > **Enable APIs and Services**
-4. ابحث عن "Google Sheets API" وفعّله
-5. اذهب إلى **Credentials** > **Create Credentials** > **Service Account**
-6. أدخل اسم للـ Service Account واضغط Create
-7. اضغط على Service Account المُنشأ
-8. اذهب إلى تبويب **Keys** > **Add Key** > **Create New Key**
-9. اختر JSON وحمّل الملف
-10. افتح الملف وانسخ **كل** المحتوى
-
-### مشاركة Google Sheet
-
-1. افتح Google Sheet الذي تريد استخدامه (اسمه: "طلبات")
-2. اضغط "Share"
-3. الصق البريد الإلكتروني من ملف JSON (حقل `client_email`)
-4. أعطه صلاحية "Editor"
+1. افتح الـ Terminal في مجلد المشروع الرئيسي.
+2. ادخل لمجلد الـ backend:
+   ```bash
+   cd backend
+   ```
+3. قم بتثبيت Vercel CLI (إذا لم يكن لديك):
+   ```bash
+   npm install -g vercel
+   ```
+4. ابدأ عملية النشر:
+   ```bash
+   vercel
+   ```
+5. اتبع التعليمات في الـ Terminal:
+   - سجل دخول إذا طلب منك.
+   - Set up and deploy? **Yes**
+   - Which scope? **اختر حسابك**
+   - Link to existing project? **No**
+   - Project name? **chatbot-backend** (أو أي اسم تفضله)
+   - In which directory is your code located? **./**
+6. **إضافة متغيرات البيئة (Environment Variables):**
+   بعد الانتهاء من أول عملية نشر (حتى لو فشلت)، اذهب للوحة تحكم Vercel وأضف المتغيرات التالية:
+   - `DATABASE_URL`: الرابط الذي حصلت عليه من Neon.
+   - `GEMINI_API_KEY`: مفتاح Gemini الخاص بك.
+   - `GOOGLE_CREDENTIALS_JSON`: محتوى ملف `credentials.json` بالكامل (اجعله في سطر واحد).
+7. قم بالنشر النهائي:
+   ```bash
+   vercel --prod
+   ```
+8. **انسخ رابط الـ Backend المنشور** (مثلاً: `https://chatbot-backend.vercel.app`).
 
 ---
 
-## الخطوة 3: نشر Backend على Vercel
+## 3️⃣ الخطوة الثالثة: نشر الـ Frontend
 
-### من Terminal
+1. ارجع للمجلد الرئيسي ثم ادخل لمجلد الـ frontend:
+   ```bash
+   cd ../frontend
+   ```
+2. ابدأ عملية النشر:
+   ```bash
+   vercel
+   ```
+3. اتبع التعليمات (اسم المشروع: `chatbot-ui`).
+4. **إضافة متغيرات البيئة:**
+   في لوحة تحكم Vercel لمشروع الـ Frontend، أضف المتغير التالي:
+   - `NEXT_PUBLIC_API_URL`: الرابط الذي حصلت عليه من الـ Backend في الخطوة السابقة.
+5. قم بالنشر النهائي:
+   ```bash
+   vercel --prod
+   ```
 
+---
+
+## 💡 ملاحظات هامة
+
+- **CORS**: الكود مبرمج الآن للسماح بجميع الروابط (`*`) مؤقتاً لتسهيل النشر. يمكنك تضييقها لاحقاً من ملف `config.py`.
+- **Google Sheets**: لا تنسَ مشاركة الشيت مع البريد الإلكتروني (client_email) الموجود داخل ملف `credentials.json` وأعطِه صلاحية **Editor**.
+- **ملف main.py**: قمنا بإنشاء ملف `backend/main.py` خصيصاً ليعمل كـ Entry Point لخدمات Vercel.
+
+---
+
+### الأوامر السريعة للتحديث لاحقاً:
+عند رغبتك في تحديث الكود في المستقبل، فقط اكتب في المجلد المعني:
 ```bash
-cd backend
-vercel
-```
-
-### إعداد المتغيرات
-
-عند السؤال، أدخل:
-
-1. **DATABASE_URL**
-   ```
-   postgresql://user:password@host/database?sslmode=require
-   ```
-
-2. **GEMINI_API_KEY**
-   ```
-   AIzaSy...
-   ```
-
-3. **GOOGLE_CREDENTIALS_JSON**
-   ```json
-   {"type":"service_account","project_id":"...","private_key_id":"...","private_key":"...","client_email":"...","client_id":"...","auth_uri":"...","token_uri":"...","auth_provider_x509_cert_url":"...","client_x509_cert_url":"..."}
-   ```
-   > ⚠️ **مهم**: انسخ المحتوى كاملاً في سطر واحد بدون مسافات أو أسطر جديدة
-
-### بعد النشر
-
-- احفظ رابط Backend (مثال: `https://your-backend.vercel.app`)
-- جرب الوصول إلى `https://your-backend.vercel.app/` للتأكد من عمله
-
----
-
-## الخطوة 4: نشر Frontend على Vercel
-
-### من Terminal
-
-```bash
-cd frontend
-vercel
-```
-
-### إعداد المتغيرات
-
-عند السؤال، أدخل:
-
-**NEXT_PUBLIC_API_URL**
-```
-https://your-backend.vercel.app
-```
-> استبدل `your-backend.vercel.app` برابط Backend من الخطوة السابقة
-
-### بعد النشر
-
-- احفظ رابط Frontend (مثال: `https://your-frontend.vercel.app`)
-
----
-
-## الخطوة 5: التحقق من النشر
-
-### اختبار كامل
-
-1. افتح رابط Frontend في المتصفح
-2. سجل دخول بحساب Admin:
-   - الكود: `admin123`
-3. جرب إنشاء طلب جديد
-4. تحقق من ظهور الطلب في Google Sheets
-
-### في حالة وجود مشاكل
-
-#### Backend لا يعمل
-- تحقق من Logs في Vercel Dashboard
-- تأكد من صحة `DATABASE_URL`
-- تأكد من صحة `GOOGLE_CREDENTIALS_JSON`
-
-#### Frontend لا يتصل بـ Backend
-- تأكد من `NEXT_PUBLIC_API_URL` يشير لرابط Backend الصحيح
-- تحقق من CORS في Backend (يجب أن يكون `allow_origins=["*"]`)
-
-#### Google Sheets لا يحفظ
-- تأكد من مشاركة Sheet مع Service Account Email
-- تأكد من اسم Sheet هو "طلبات" بالضبط
-- تحقق من صحة `GOOGLE_CREDENTIALS_JSON`
-
----
-
-## إضافة/تعديل متغيرات البيئة بعد النشر
-
-### من Vercel Dashboard
-
-1. اذهب إلى https://vercel.com/dashboard
-2. اختر المشروع (Backend أو Frontend)
-3. اذهب إلى **Settings** > **Environment Variables**
-4. أضف أو عدّل المتغيرات
-5. اضغط **Save**
-6. أعد نشر المشروع من تبويب **Deployments** > **Redeploy**
-
----
-
-## نصائح مهمة
-
-- 🔒 **لا تشارك** متغيرات البيئة مع أحد
-- 📝 احفظ نسخة احتياطية من `credentials.json`
-- 🔄 عند تعديل الكود، استخدم `vercel --prod` للنشر المباشر
-- 📊 راقب Logs في Vercel Dashboard لمتابعة الأخطاء
-- 💾 قاعدة البيانات على Neon.tech لها حد مجاني، راقب الاستخدام
-
----
-
-## الأوامر المفيدة
-
-```bash
-# نشر تجريبي (Preview)
-vercel
-
-# نشر إنتاجي (Production)
 vercel --prod
-
-# عرض Logs
-vercel logs
-
-# ربط مشروع موجود
-vercel link
 ```
-
----
-
-## الدعم
-
-إذا واجهت أي مشكلة:
-1. تحقق من Logs في Vercel
-2. راجع متغيرات البيئة
-3. تأكد من صحة جميع الإعدادات

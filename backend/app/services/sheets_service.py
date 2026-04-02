@@ -14,18 +14,45 @@ worksheet = None
 _sheets_lock = threading.Lock()  # Prevent concurrent writes
 _gc_client = None  # Shared gspread client
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+def _sanitize_for_sheets(value):
+    """
+    Prevent Google Sheets from interpreting untrusted text as formulas.
+    """
+    if value is None:
+        return ""
+    s = str(value)
+    if s and s.startswith(_FORMULA_PREFIXES):
+        return "'" + s
+    return s
+
 
 def init_google_sheets():
     global worksheet, _gc_client
     try:
-        if settings.GOOGLE_CREDENTIALS_JSON:
-            creds_dict = json.loads(settings.GOOGLE_CREDENTIALS_JSON)
+        creds_json = settings.GOOGLE_CREDENTIALS_JSON
+        if creds_json:
+            # Handle Base64 encoding if the user used it for Vercel
+            try:
+                import base64
+                if not (creds_json.strip().startswith("{") or creds_json.strip().startswith("[")):
+                    creds_json = base64.b64decode(creds_json).decode("utf-8")
+            except Exception:
+                pass # Not base64
+            
+            creds_dict = json.loads(creds_json)
         else:
             with open("credentials.json", 'r', encoding='utf-8') as f:
                 creds_dict = json.load(f)
         
         if "private_key" in creds_dict:
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            # Robust newline replacement (handles literal \n and escaped \\n)
+            pk = creds_dict["private_key"]
+            if "\\n" in pk:
+                creds_dict["private_key"] = pk.replace("\\n", "\n")
+            elif "\\\\n" in pk:
+                creds_dict["private_key"] = pk.replace("\\\\n", "\n")
 
         _gc_client = gspread.service_account_from_dict(creds_dict)
         sh = _gc_client.open(settings.GOOGLE_SHEET_NAME)
@@ -77,10 +104,19 @@ def save_to_sheet(data, summary, user_info, background_tasks=None):
 
             for item in data.get('items', []):
                 short_desc = f"{item.get('item', '')} {item.get('s1_v', '')} {item.get('s2_v', '')} {item.get('s3_v', '')}".strip()
+                safe_short_desc = _sanitize_for_sheets(short_desc)
+                safe_summary = _sanitize_for_sheets(summary)
+                safe_addr = _sanitize_for_sheets(data.get('c', {}).get('a', ''))
+                safe_tech_desc = _sanitize_for_sheets(item.get('tech_desc', summary))
                 row = [
                     order_num, timestamp, user_info.name, user_info.phone,
-                    item.get('cat', ''), short_desc, item.get('qty', ''), item.get('unit', ''),
-                    summary, data.get('c', {}).get('a', ''), item.get('tech_desc', summary)
+                    _sanitize_for_sheets(item.get('cat', '')),
+                    safe_short_desc,
+                    _sanitize_for_sheets(item.get('qty', '')),
+                    _sanitize_for_sheets(item.get('unit', '')),
+                    safe_summary,
+                    safe_addr,
+                    safe_tech_desc
                 ]
                 rows.append(row)
 

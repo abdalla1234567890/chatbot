@@ -15,8 +15,12 @@
 
 ```env
 DATABASE_URL=postgresql://user:password@host/database?sslmode=require
+JWT_SECRET_KEY=your_long_random_secret
+ENVIRONMENT=development
 GEMINI_API_KEY=your_gemini_api_key
 GOOGLE_CREDENTIALS_JSON={"type":"service_account",...}
+BACKEND_CORS_ORIGINS=http://localhost:3000
+ADMIN_BOOTSTRAP_CODE=your_bootstrap_admin_code
 ```
 
 ### Frontend (.env.local)
@@ -49,7 +53,7 @@ npm run dev
 
 ## بيانات الدخول الافتراضية
 
-- Admin: `admin123`
+- Admin: يتم إنشاؤه أول مرة من خلال `ADMIN_BOOTSTRAP_CODE` (أو يتم توليد كود عشوائي ويظهر في logs عند أول تشغيل محليًا).
 
 ---
 
@@ -96,7 +100,7 @@ vercel
 ### 5. التحقق من النشر
 
 1. افتح رابط Frontend
-2. سجل دخول بحساب admin: `admin123`
+2. سجل دخول بكود الإدمن اللي تم عمله bootstrap (من env/logs)
 3. جرب إنشاء طلب جديد
 4. تحقق من حفظ الطلب في Google Sheets
 

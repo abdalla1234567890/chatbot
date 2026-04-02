@@ -6,6 +6,7 @@ from pydantic import AnyHttpUrl, field_validator
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Chatbot API"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "development"
     
     # Security
     JWT_SECRET_KEY: Optional[str] = None
@@ -22,10 +23,10 @@ class Settings(BaseSettings):
     GOOGLE_SHEET_NAME: str = "الشات والتصنيفات"
     
     # Admin
-    ADMIN_DEFAULT_CODE: str = "admin123"
+    ADMIN_BOOTSTRAP_CODE: Optional[str] = None
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = []
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod

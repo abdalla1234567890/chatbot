@@ -42,6 +42,15 @@ def login(
     if not user:
         _record_failed_attempt(request)
         raise HTTPException(status_code=401, detail="Incorrect code")
+    # Verify secret (backward-compatible upgrade if secret_hash is missing)
+    if getattr(user, "secret_hash", None):
+        if not security.verify_password(form_data.username, user.secret_hash):
+            _record_failed_attempt(request)
+            raise HTTPException(status_code=401, detail="Incorrect code")
+    else:
+        # Upgrade legacy rows: store bcrypt hash of the existing code
+        user.secret_hash = security.get_password_hash(user.code)
+        db.commit()
     
     access_token = security.create_access_token(subject=user.code)
     return {
@@ -61,6 +70,14 @@ def login_json(
     if not user:
         _record_failed_attempt(request)
         raise HTTPException(status_code=401, detail="Invalid code")
+    # Verify secret (backward-compatible upgrade if secret_hash is missing)
+    if getattr(user, "secret_hash", None):
+        if not security.verify_password(req.code, user.secret_hash):
+            _record_failed_attempt(request)
+            raise HTTPException(status_code=401, detail="Invalid code")
+    else:
+        user.secret_hash = security.get_password_hash(user.code)
+        db.commit()
     
     access_token = security.create_access_token(subject=user.code)
     return {

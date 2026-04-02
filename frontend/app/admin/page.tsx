@@ -277,6 +277,10 @@ export default function AdminPage() {
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all font-mono"
                                         required
                                         placeholder="05XXXXXXXX"
+                                        pattern="05[0-9]{8}"
+                                        maxLength={10}
+                                        minLength={10}
+                                        inputMode="numeric"
                                     />
                                 </div>
                                 <div className="md:col-span-3">

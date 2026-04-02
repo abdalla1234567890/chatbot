@@ -14,6 +14,7 @@ class User(Base):
     __tablename__ = "users"
 
     code = Column(String, primary_key=True, index=True)
+    secret_hash = Column(String, nullable=True)
     name = Column(String)
     phone = Column(String)
     is_admin = Column(Integer, default=0) # SQLite fallback for Boolean

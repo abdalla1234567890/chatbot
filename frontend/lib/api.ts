@@ -1,4 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+if (API_BASE_URL.endsWith("/")) {
+  API_BASE_URL = API_BASE_URL.slice(0, -1);
+}
+if (!API_BASE_URL.includes("/api/v1")) {
+  API_BASE_URL += "/api/v1";
+}
 
 interface FetchOptions extends RequestInit {
   body?: any;
