@@ -103,17 +103,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleResetUserSecret = async (code: string) => {
-    const newSecret = prompt("أدخل الكود السري الجديد للمستخدم (6 أحرف/أرقام على الأقل):");
-    if (!newSecret) return;
-    try {
-      await api.post(`/admin/users/${code}/reset-secret`, { new_secret: newSecret });
-      alert("✅ تم إعادة تعيين الكود السري بنجاح");
-    } catch (err: any) {
-      alert(err.message || "❌ فشل إعادة تعيين الكود السري");
-    }
-  };
-
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     const nextValue = updateUser.value.trim();
@@ -121,7 +110,7 @@ export default function AdminPage() {
     try {
       if (updateUser.field === "secret") {
         await api.post(`/admin/users/${updateUser.code}/reset-secret`, { new_secret: nextValue });
-        alert("\u2705 \u062A\u0645 \u0627\u0644\u062A\u0639\u062F\u064A\u0644 \u0628\u0646\u062C\u0627\u062D");
+        alert("✅ تم التعديل بنجاح");
         setUpdateUser({ code: "", field: "name", value: "" });
         setShowUpdateForm(false);
         loadUsers();
@@ -144,6 +133,12 @@ export default function AdminPage() {
     setUpdateUser({ code: user.code, field: "name", value: user.name });
     setShowUpdateForm(true);
     setShowAddForm(false);
+  };
+
+  const maskUserCode = (code: string) => {
+    if (!code) return "";
+    if (code.length <= 2) return "*".repeat(code.length);
+    return `${"*".repeat(code.length - 2)}${code.slice(-2)}`;
   };
 
   const handleAddLocation = async (e: React.FormEvent) => {
@@ -172,12 +167,6 @@ export default function AdminPage() {
   const handleLogout = () => {
     localStorage.clear();
     router.push("/");
-  };
-
-  const maskUserCode = (code: string) => {
-    if (!code) return "";
-    if (code.length <= 2) return "*".repeat(code.length);
-    return `${"*".repeat(code.length - 2)}${code.slice(-2)}`;
   };
 
   const handleOpenUserLocationsModal = async (userCode: string) => {
@@ -310,10 +299,6 @@ export default function AdminPage() {
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all font-mono"
                                         required
                                         placeholder="05XXXXXXXX"
-                                        pattern="05[0-9]{8}"
-                                        maxLength={10}
-                                        minLength={10}
-                                        inputMode="numeric"
                                     />
                                 </div>
                                 <div className="md:col-span-3">
@@ -346,12 +331,12 @@ export default function AdminPage() {
                                     <select
                                         value={updateUser.field}
                                         onChange={(e) => setUpdateUser({ ...updateUser, field: e.target.value as UpdateField, value: "" })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all"
+                                        className="w-full px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all"
                                         required
                                     >
-                                        <option value="name">الاسم</option>
-                                        <option value="phone">رقم الجوال</option>
-                                        <option value="secret">{"\u0627\u0644\u0643\u0648\u062F \u0627\u0644\u0633\u0631\u064A"}</option>
+                                        <option value="name" className="bg-slate-800">الاسم</option>
+                                        <option value="phone" className="bg-slate-800">رقم الجوال</option>
+                                        <option value="secret" className="bg-slate-800">الكود السري</option>
                                     </select>
                                 </div>
                                 <div>
@@ -362,11 +347,7 @@ export default function AdminPage() {
                                         onChange={(e) => setUpdateUser({ ...updateUser, value: e.target.value })}
                                         className={`w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all ${updateUser.field === "name" ? "" : "font-mono"}`}
                                         required
-                                        placeholder={updateUser.field === "phone" ? "05XXXXXXXX" : updateUser.field === "secret" ? "\u0627\u0643\u062A\u0628 \u0627\u0644\u0643\u0648\u062F \u0627\u0644\u0633\u0631\u064A \u0627\u0644\u062C\u062F\u064A\u062F" : "\u0627\u0643\u062A\u0628 \u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u062C\u062F\u064A\u062F"}
-                                        pattern={updateUser.field === "phone" ? "05[0-9]{8}" : undefined}
-                                        maxLength={updateUser.field === "phone" ? 10 : undefined}
-                                        minLength={updateUser.field === "phone" ? 10 : updateUser.field === "secret" ? 6 : undefined}
-                                        inputMode={updateUser.field === "phone" ? "numeric" : "text"}
+                                        placeholder={updateUser.field === "phone" ? "05XXXXXXXX" : updateUser.field === "secret" ? "اكتب الكود السري الجديد" : "اكتب الاسم الجديد"}
                                     />
                                 </div>
                                 <div className="md:col-span-3 flex gap-3">
@@ -397,7 +378,7 @@ export default function AdminPage() {
                                 <thead>
                                     <tr className="bg-white/10">
                                         <th className="px-6 py-5 text-gray-200 font-black">المندوب</th>
-                                        <th className="px-6 py-5 text-gray-200 font-black">الكود (مخفي)</th>
+                                        <th className="px-6 py-5 text-gray-200 font-black">الكود</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">الجوال</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">المستوى</th>
                                         <th className="px-6 py-5 text-gray-200 font-black">الإجراءات</th>
@@ -439,15 +420,6 @@ export default function AdminPage() {
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleResetUserSecret(user.code)}
-                                                        className="hidden"
-                                                        title="إعادة تعيين الكود السري"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.59c.75 1.334-.213 2.99-1.742 2.99H3.48c-1.53 0-2.492-1.656-1.743-2.99l6.52-11.59zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-7a1 1 0 00-1 1v3a1 1 0 102 0V8a1 1 0 00-1-1z" />
                                                         </svg>
                                                     </button>
                                                     {user.name !== "Main Admin" && (
