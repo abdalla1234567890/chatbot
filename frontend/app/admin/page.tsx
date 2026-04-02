@@ -22,6 +22,8 @@ interface UserLocationData {
   userLocations: Location[];
 }
 
+type UpdateField = "name" | "phone" | "secret";
+
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -29,7 +31,11 @@ export default function AdminPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUser, setNewUser] = useState({ code: "", name: "", phone: "" });
   const [showUpdateForm, setShowUpdateForm] = useState(false);
-  const [updateUser, setUpdateUser] = useState({ code: "", field: "", value: "" });
+  const [updateUser, setUpdateUser] = useState<{ code: string; field: UpdateField; value: string }>({
+    code: "",
+    field: "name",
+    value: "",
+  });
   const [showAddLocationForm, setShowAddLocationForm] = useState(false);
   const [newLocation, setNewLocation] = useState("");
   const [showUserLocationsModal, setShowUserLocationsModal] = useState(false);
@@ -110,13 +116,23 @@ export default function AdminPage() {
 
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextValue = updateUser.value.trim();
+    if (!nextValue) return;
     try {
+      if (updateUser.field === "secret") {
+        await api.post(`/admin/users/${updateUser.code}/reset-secret`, { new_secret: nextValue });
+        alert("\u2705 \u062A\u0645 \u0627\u0644\u062A\u0639\u062F\u064A\u0644 \u0628\u0646\u062C\u0627\u062D");
+        setUpdateUser({ code: "", field: "name", value: "" });
+        setShowUpdateForm(false);
+        loadUsers();
+        return;
+      }
       // Updated to match PUT /admin/users/{user_code}
       await api.put(`/admin/users/${updateUser.code}`, {
-        [updateUser.field]: updateUser.value
+        [updateUser.field]: nextValue
       });
       alert("✅ تم التعديل بنجاح");
-      setUpdateUser({ code: "", field: "", value: "" });
+      setUpdateUser({ code: "", field: "name", value: "" });
       setShowUpdateForm(false);
       loadUsers();
     } catch (err: any) {
@@ -329,26 +345,27 @@ export default function AdminPage() {
                                     <label className="block text-sm font-bold text-gray-200 mb-2">الحقل المراد تعديله</label>
                                     <select
                                         value={updateUser.field}
-                                        onChange={(e) => setUpdateUser({ ...updateUser, field: e.target.value, value: "" })}
+                                        onChange={(e) => setUpdateUser({ ...updateUser, field: e.target.value as UpdateField, value: "" })}
                                         className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all"
                                         required
                                     >
                                         <option value="name">الاسم</option>
                                         <option value="phone">رقم الجوال</option>
+                                        <option value="secret">{"\u0627\u0644\u0643\u0648\u062F \u0627\u0644\u0633\u0631\u064A"}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-200 mb-2">القيمة الجديدة</label>
                                     <input
-                                        type="text"
+                                        type={updateUser.field === "secret" ? "password" : "text"}
                                         value={updateUser.value}
                                         onChange={(e) => setUpdateUser({ ...updateUser, value: e.target.value })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all font-mono"
+                                        className={`w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-teal-500 transition-all ${updateUser.field === "name" ? "" : "font-mono"}`}
                                         required
-                                        placeholder={updateUser.field === "phone" ? "05XXXXXXXX" : "اكتب الاسم الجديد"}
+                                        placeholder={updateUser.field === "phone" ? "05XXXXXXXX" : updateUser.field === "secret" ? "\u0627\u0643\u062A\u0628 \u0627\u0644\u0643\u0648\u062F \u0627\u0644\u0633\u0631\u064A \u0627\u0644\u062C\u062F\u064A\u062F" : "\u0627\u0643\u062A\u0628 \u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u062C\u062F\u064A\u062F"}
                                         pattern={updateUser.field === "phone" ? "05[0-9]{8}" : undefined}
                                         maxLength={updateUser.field === "phone" ? 10 : undefined}
-                                        minLength={updateUser.field === "phone" ? 10 : undefined}
+                                        minLength={updateUser.field === "phone" ? 10 : updateUser.field === "secret" ? 8 : undefined}
                                         inputMode={updateUser.field === "phone" ? "numeric" : "text"}
                                     />
                                 </div>
@@ -363,7 +380,7 @@ export default function AdminPage() {
                                         type="button"
                                         onClick={() => {
                                             setShowUpdateForm(false);
-                                            setUpdateUser({ code: "", field: "", value: "" });
+                                            setUpdateUser({ code: "", field: "name", value: "" });
                                         }}
                                         className="px-6 py-4 bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 rounded-xl transition-all"
                                     >
@@ -426,7 +443,7 @@ export default function AdminPage() {
                                                     </button>
                                                     <button
                                                         onClick={() => handleResetUserSecret(user.code)}
-                                                        className="p-2 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded-lg transition-all"
+                                                        className="hidden"
                                                         title="إعادة تعيين الكود السري"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
