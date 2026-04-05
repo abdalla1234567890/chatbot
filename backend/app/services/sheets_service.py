@@ -110,11 +110,11 @@ def save_to_sheet(data, summary, user_info, background_tasks=None):
                 safe_tech_desc = _sanitize_for_sheets(item.get('tech_desc', summary))
                 row = [
                     order_num, timestamp, user_info.name, user_info.phone,
+                    safe_summary,
                     _sanitize_for_sheets(item.get('cat', '')),
                     safe_short_desc,
                     _sanitize_for_sheets(item.get('qty', '')),
                     _sanitize_for_sheets(item.get('unit', '')),
-                    safe_summary,
                     safe_addr,
                     safe_tech_desc
                 ]

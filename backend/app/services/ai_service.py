@@ -106,7 +106,7 @@ def get_ai_response(history, user_info, allowed_locations=None, taxonomy_summary
         try:
             if not model: return "AI Unavailable"
             
-            gen_config = genai.types.GenerationConfig(max_output_tokens=8192, temperature=0.5)
+            gen_config = genai.types.GenerationConfig(max_output_tokens=10240, temperature=0.5)
             response = model.generate_content(conversation, generation_config=gen_config)
             return response.text.strip()
         except Exception as e:

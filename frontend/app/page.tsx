@@ -101,7 +101,7 @@ export default function Home() {
             <img src="/alamuria-logo.png" alt="شركة العامورية" className="h-20 w-auto drop-shadow-md" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">شات بوت شركة العامورية</h1>
-          <p className="text-gray-300 font-medium">نظام إدارة طلبات مواد البناء</p>
+          <p className="text-gray-300 font-medium">نظام تقديم الطلبات</p>
         </div>
 
         <form onSubmit={otpRequired ? handleVerifyOtp : handleLogin} className="space-y-6">

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "شركة العامورية - شات بوت مواد البناء",
-  description: "نظام طلبات مواد البناء - شركة العامورية",
+  title: "شات بوت شركة العامورية",
+  description: "نظام تقديم الطلبات",
 };
 
 export default function RootLayout({
